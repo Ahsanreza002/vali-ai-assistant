@@ -1,7 +1,22 @@
 # Lumina — AI Knowledge Assistant
 
-> A production-grade, ChatGPT-style RAG application with premium dark UI.
-> Built with React + Vite + Tailwind + Framer Motion (frontend) and FastAPI + Gemini (backend).
+> A production-grade, ChatGPT-style RAG application with a premium dark UI.
+> Built using **React + Vite + Tailwind + Framer Motion (frontend)** and **FastAPI + Groq (Llama 3.3 70B) (backend)**.
+
+---
+
+## 🧱 Architecture
+
+![Architecture](./architecture.png)
+
+### 🔄 Request Flow
+
+1. User uploads document → FastAPI backend
+2. Document parsing + chunking pipeline
+3. TF-IDF indexing (in-memory search layer)
+4. User query → similarity search → top-k chunks retrieved
+5. Context sent to **Groq API (Llama 3.3 70B)**
+6. Response generated (~1s latency) and streamed to UI
 
 ---
 
@@ -19,26 +34,25 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Add your Gemini API key
-export GEMINI_API_KEY="your_key_here"   # Windows: set GEMINI_API_KEY=your_key_here
+# Add your Groq API key
+export GROQ_API_KEY="your_key_here"   # Windows: set GROQ_API_KEY=your_key_here
 
-# Run the server
+# Run server
 uvicorn main:app --reload --port 8000
 ```
 
-Get your free Gemini API key at: https://aistudio.google.com/app/apikey
+Get API key: https://console.groq.com/
 
 ---
 
 ### 2. Frontend Setup
 
 ```bash
-# From the project root
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173
+Open: http://localhost:5173
 
 ---
 
@@ -47,23 +61,14 @@ Open http://localhost:5173
 ```
 lumina/
 ├── src/
-│   ├── components/
-│   │   ├── Sidebar.jsx        # File upload + document list
-│   │   ├── Chat.jsx           # Main chat layout + topbar
-│   │   ├── ChatBubble.jsx     # Message bubbles (user + AI)
-│   │   ├── ChatInput.jsx      # Bottom input with animations
-│   │   ├── TypingIndicator.jsx
-│   │   └── EmptyState.jsx
-│   ├── hooks/
-│   │   ├── useChat.js         # Message state + API calls
-│   │   └── useDocuments.js    # Upload + document management
-│   ├── utils/
-│   │   └── api.js             # Axios client
+│   ├── components/        # UI components (Chat, Sidebar, Input, etc.)
+│   ├── hooks/             # Custom hooks (state + API logic)
+│   ├── utils/             # Axios client & helpers
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css
 ├── backend/
-│   ├── main.py                # FastAPI app + RAG engine
+│   ├── main.py            # FastAPI app + RAG engine
 │   └── requirements.txt
 ├── index.html
 ├── vite.config.js
@@ -73,87 +78,107 @@ lumina/
 
 ---
 
-## 🧠 How RAG Works
+## 🧠 System Design
 
-1. **Upload** — File is sent to `/api/upload`
-2. **Extract** — Text pulled from PDF/DOCX/TXT/CSV/MD
-3. **Chunk** — Split into ~400-word overlapping windows
-4. **Index** — TF-IDF vectors built in memory (no vector DB needed)
-5. **Query** — User question vectorized + cosine similarity search
-6. **Generate** — Top chunks injected into Gemini prompt
-7. **Stream** — Answer returned to chat UI
+### 📥 Ingestion Pipeline
+
+* File upload via `/api/upload`
+* Parsing: PDF, DOCX, TXT, CSV, Markdown
+* Text chunking (~400 tokens with overlap)
+* TF-IDF vectorization
+* In-memory index creation
+
+### 🔍 Query Pipeline
+
+* User query vectorized using TF-IDF
+* Cosine similarity search retrieves top-k chunks
+* Relevant context injected into Groq prompt
+* LLM generates response (~1s latency)
+* Response returned to frontend
 
 ---
 
-## 🎨 Design System
+## ⚙️ Key Engineering Decisions
 
-| Token         | Value       |
-|---------------|-------------|
-| Background    | `#080c14`   |
-| Surface       | `#0d1117`   |
-| Card          | `#161b27`   |
-| Border        | `#1e2836`   |
-| Accent blue   | `#3b82f6`   |
-| Accent violet | `#7c3aed`   |
-| Font          | DM Sans     |
-| Mono font     | JetBrains Mono |
+* **Custom TF-IDF search engine** → eliminates need for external vector DB (cost = $0)
+* **Groq (Llama 3.3 70B)** → ultra-fast inference (~1s response time)
+* **Async FastAPI APIs** → supports concurrent user requests
+* **Modular architecture** → API layer, processing layer, search layer
+* **Frontend-backend separation** → enables independent scaling
+* **CI/CD pipeline** → auto-deploy on GitHub push
 
 ---
 
 ## ✨ Features
 
-- **Dark mode** premium UI (ChatGPT/Perplexity inspired)
-- **Drag & drop** file upload with progress bar
-- **Multi-document** RAG — query across all uploaded files
-- **Markdown rendering** — headers, lists, code blocks, inline formatting
-- **Message actions** — copy, export conversation
-- **Source citations** — collapsible source list per AI message
-- **Typing indicator** — animated dots while AI thinks
-- **Suggested queries** — clickable prompts on empty state
-- **Responsive** — mobile sidebar with overlay
+* ChatGPT-style conversational UI
+* Multi-document RAG querying
+* Source citations with collapsible UI
+* Markdown rendering (code blocks, lists, headings)
+* Drag & drop file upload with progress
+* Typing indicator animation
+* Suggested prompts (empty state)
+* Fully responsive (mobile + desktop)
 
 ---
 
 ## 🔧 Supported File Types
 
-| Format | Library       |
-|--------|---------------|
-| PDF    | pdfplumber    |
-| DOCX   | python-docx   |
-| TXT    | built-in      |
-| MD     | built-in      |
-| CSV    | built-in      |
+| Format | Library     |
+| ------ | ----------- |
+| PDF    | pdfplumber  |
+| DOCX   | python-docx |
+| TXT    | built-in    |
+| MD     | built-in    |
+| CSV    | built-in    |
 
 ---
 
-## 🚢 Production Deployment
+## 🚢 Deployment
 
 ### Frontend (Vercel / Netlify)
+
 ```bash
 npm run build
-# Deploy the dist/ folder
 ```
 
-Update `vite.config.js` proxy to point to your deployed backend URL.
+### Backend (Render / Railway / Fly.io)
 
-### Backend (Railway / Render / Fly.io)
 ```bash
 uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
-Set `GEMINI_API_KEY` as an environment variable on your platform.
+### Environment Variables
+
+```bash
+GROQ_API_KEY=your_key_here
+```
 
 ---
 
 ## 📦 Tech Stack
 
-| Layer     | Technology                            |
-|-----------|---------------------------------------|
-| UI        | React 18, Vite, Tailwind CSS          |
-| Animation | Framer Motion                         |
-| Icons     | Lucide React                          |
-| HTTP      | Axios                                 |
-| Backend   | FastAPI, Uvicorn                      |
-| LLM       | Google Gemini 1.5 Flash               |
-| RAG       | Custom TF-IDF (zero vector DB deps)   |
-| Parsing   | pdfplumber, python-docx               |
+| Layer     | Technology                |
+| --------- | ------------------------- |
+| Frontend  | React, Vite, Tailwind CSS |
+| Animation | Framer Motion             |
+| Backend   | FastAPI, Uvicorn          |
+| LLM       | Groq (Llama 3.3 70B)      |
+| RAG       | Custom TF-IDF             |
+| Parsing   | pdfplumber, python-docx   |
+
+---
+
+## 📈 Future Improvements
+
+* Add Redis caching to reduce query latency
+* Persist vector index (disk/DB-based storage)
+* Add authentication & user sessions
+* Streaming responses using SSE/WebSockets
+* Horizontal scaling with load balancer
+
+---
+
+## 📄 License
+
+MIT License
