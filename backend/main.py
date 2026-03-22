@@ -37,11 +37,11 @@ except ImportError:
     DOCX_AVAILABLE = False
 
 # ── Config ─────────────────────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-CHUNK_SIZE   = 400
+GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
+CHUNK_SIZE    = 400
 CHUNK_OVERLAP = 80
-TOP_K        = 6
-MAX_CONTEXT  = 3000
+TOP_K         = 6
+MAX_CONTEXT   = 3000
 
 groq_client = Groq(api_key=GROQ_API_KEY) if (GROQ_AVAILABLE and GROQ_API_KEY) else None
 
@@ -54,6 +54,7 @@ app = FastAPI(title="Lumina API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -144,9 +145,9 @@ def cosine_sim(a: list[float], b: list[float]) -> float:
 
 
 def retrieve(query: str, doc_id: str, top_k: int = TOP_K):
-    doc     = DOCS[doc_id]
-    qvec    = doc["vectorize"](query)
-    scored  = [
+    doc    = DOCS[doc_id]
+    qvec   = doc["vectorize"](query)
+    scored = [
         (chunk, cosine_sim(qvec, emb))
         for chunk, emb in zip(doc["chunks"], doc["embeddings"])
     ]
@@ -169,7 +170,11 @@ class QueryResponse(BaseModel):
 # ── Routes ─────────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "docs": len(DOCS), "llm": groq_client is not None}
+    return {
+        "status": "ok",
+        "docs": len(DOCS),
+        "llm": groq_client is not None
+    }
 
 
 @app.post("/api/upload")
@@ -230,7 +235,6 @@ def query_knowledge(req: QueryRequest):
     target_ids = req.doc_ids if req.doc_ids else list(DOCS.keys())
 
     if not target_ids:
-        # No docs loaded — still attempt a direct LLM answer
         context, sources = "", []
     else:
         all_results: list[tuple[str, float, str]] = []
@@ -297,11 +301,11 @@ Assistant:"""
         except Exception as e:
             raise HTTPException(500, f"LLM error: {str(e)}")
     else:
-        # Mock response when no API key
         answer = (
             "**Lumina Demo Mode** — No Groq API key detected.\n\n"
             "Get a free key at **https://console.groq.com** → API Keys\n\n"
-            "Then run: `export GROQ_API_KEY=your_key_here`\n\n"
+            "Then set it in your Render dashboard under **Environment Variables**:\n"
+            "`GROQ_API_KEY = your_key_here`\n\n"
             f"Your query was: *{req.query}*\n\n"
             + (f"Found **{len(context.split())} words** of context across {len(sources)} document(s)."
                if context else "No documents loaded yet.")
